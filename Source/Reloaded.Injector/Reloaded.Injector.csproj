@@ -16,7 +16,7 @@
     <Version>1.2.117</Version>
     <Copyright>LGPLV3</Copyright>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
-	  <LangVersion>Preview</LangVersion>
+	<LangVersion>9.0</LangVersion>
     <PackageIcon>Icon.png</PackageIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
