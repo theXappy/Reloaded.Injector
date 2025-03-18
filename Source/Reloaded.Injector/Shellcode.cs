@@ -18,29 +18,29 @@ namespace Reloaded.Injector
     /// </summary>
     public class Shellcode : IDisposable
     {
-		public static nuint CircularBufferSize = 4096;
-		public static nuint PrivateBufferSize = 4096;//orig did 4096
-		public static bool AssemblyLargePtrFix = false;// THIS DOES NOT WORK but if the ptr to our memroy is too high the fasm call will fail so wil need to figure out a work around
-		internal const nuint minimumAddress = 65536u;
-		internal const int retryCount = 3;
+        public static nuint CircularBufferSize = 4096;
+        public static nuint PrivateBufferSize = 4096;//orig did 4096
+        public static bool AssemblyLargePtrFix = false;// THIS DOES NOT WORK but if the ptr to our memroy is too high the fasm call will fail so wil need to figure out a work around
+        internal const nuint minimumAddress = 65536u;
+        internal const int retryCount = 3;
         /* Setup/Build Shellcode */
-        public  long        Kernel32Handle      { get; }                /* Address of Kernel32 in remote process. */
-        public  long        LoadLibraryAddress  { get; private set; }   /* Address of LoadLibrary function. */
-        public  long        GetProcAddressAddress { get; private set; } /* Address of GetProcAddress function. */
+        public long Kernel32Handle { get; }                /* Address of Kernel32 in remote process. */
+        public long LoadLibraryAddress { get; private set; }   /* Address of LoadLibrary function. */
+        public long GetProcAddressAddress { get; private set; } /* Address of GetProcAddress function. */
 
-        private uint        _loadLibraryWOffset;    /* Address of LoadLibraryW in remote process. */
-        private uint        _getProcAddressOffset;  /* Address of GetProcAddress in remote process. */
+        private uint _loadLibraryWOffset;    /* Address of LoadLibraryW in remote process. */
+        private uint _getProcAddressOffset;  /* Address of GetProcAddress in remote process. */
         private MachineType _machineType;           /* Is remote process 64 or 32bit? */
 
         /* Temp Helpers */
-        private Assembler.Assembler _assembler;     /* Provides JIT Assembly of x86/x64 mnemonics.        */
+        private Assembler.Assembler? _assembler;     /* Provides JIT Assembly of x86/x64 mnemonics.        */
         private PrivateMemoryBufferCompat _privateBuffer; /* Provides us with somewhere to write our shellcode. */
 
         /* Perm Helpers */
-        private ExternalMemory      _memory;        /* Provides access to other process' memory.          */
-		private PrivateMemoryBufferCompat _circularBuffer; /* the actual circular buffer no longer works with external process memory */
+        private ExternalMemory _memory;        /* Provides access to other process' memory.          */
+        private PrivateMemoryBufferCompat _circularBuffer; /* the actual circular buffer no longer works with external process memory */
 
-        private Process             _targetProcess; /* The process we will be calling functions in.       */
+        private Process _targetProcess; /* The process we will be calling functions in.       */
 
         /* Final products. */ /* stdcall for x86, Microsoft for x64 */
         private long _loadLibraryWShellPtr;   /* Pointer to shellcode to execute LoadLibraryW.   */
@@ -57,24 +57,25 @@ namespace Reloaded.Injector
         public Shellcode(Process targetProcess)
         {
 
-			_privateBuffer = new PrivateMemoryBufferCompat(targetProcess,PrivateBufferSize, true); 
-            _assembler      = new Assembler.Assembler();
-            _memory         = new ExternalMemory(targetProcess);
-            _circularBuffer = new (targetProcess, CircularBufferSize);
-            _targetProcess  = targetProcess;
+            _privateBuffer = new PrivateMemoryBufferCompat(targetProcess, PrivateBufferSize, true);
+            _assembler = new Assembler.Assembler();
+            _memory = new ExternalMemory(targetProcess);
+            _circularBuffer = new(targetProcess, CircularBufferSize);
+            _targetProcess = targetProcess;
 
             // Get arch of target process. 
             PeFile targetPeFile = new PeFile(targetProcess.Modules[0].FileName);
-            _machineType        = (MachineType) targetPeFile.ImageNtHeaders.FileHeader.Machine;
+            _machineType = (MachineType)targetPeFile!.ImageNtHeaders!.FileHeader.Machine;
 
-			if (_machineType == MachineType.I386 && Environment.Is64BitProcess) { //.net auto processes have 32 bit header even though they will end up running as 64 bit
-				if (IsWow64Process(targetProcess.Handle, out var is32Bit) && is32Bit == false)
-					_machineType = MachineType.AMD64;
-			}
+            if (_machineType == MachineType.I386 && Environment.Is64BitProcess)
+            { //.net auto processes have 32 bit header even though they will end up running as 64 bit
+                if (IsWow64Process(targetProcess.Handle, out var is32Bit) && is32Bit == false)
+                    _machineType = MachineType.AMD64;
+            }
 
             // Get Kernel32 load address in target.
-            Module kernel32Module   = GetKernel32InRemoteProcess(targetProcess);
-            Kernel32Handle          = (long) kernel32Module.BaseAddress;
+            Module kernel32Module = GetKernel32InRemoteProcess(targetProcess);
+            Kernel32Handle = (long)kernel32Module.BaseAddress;
 
             // We need to change the module path if 32bit process; because the given path is not true,
             // it is being actively redirected by Windows on Windows 64 (WoW64)
@@ -84,12 +85,15 @@ namespace Reloaded.Injector
                 GetSystemWow64Directory(builder, (uint)builder.Capacity);
                 kernel32Module.ModulePath = builder.ToString() + "\\" + Path.GetFileName(kernel32Module.ModulePath);
             }
-            
+
             // Parse Kernel32 loaded by target and get address of LoadLibrary & GetProcAddress.
             PeFile kernel32PeFile = new PeFile(kernel32Module.ModulePath);
             var exportedFunctions = kernel32PeFile.ExportedFunctions;
 
-            _loadLibraryWOffset   = GetExportedFunctionOffset(exportedFunctions, "LoadLibraryW");
+            if (exportedFunctions == null)
+                throw new ShellCodeGeneratorException("Could not get exported functions list");
+
+            _loadLibraryWOffset = GetExportedFunctionOffset(exportedFunctions, "LoadLibraryW");
             _getProcAddressOffset = GetExportedFunctionOffset(exportedFunctions, "GetProcAddress");
 
             if (_loadLibraryWOffset == 0 || _getProcAddressOffset == 0)
@@ -107,7 +111,7 @@ namespace Reloaded.Injector
             }
 
             _assembler.Dispose();
-            _assembler    = null;
+            _assembler = null;
         }
         [DllImport("kernel32.dll", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -132,8 +136,8 @@ namespace Reloaded.Injector
         public long GetProcAddress(long hModule, string functionName)
         {
             var getProcAddressParams = new GetProcAddressParams(hModule, WriteNullTerminatedASCIIString(functionName));
-            long lpParameter         = (long)_circularBuffer.Add(ref getProcAddressParams);
-            IntPtr threadHandle      = CreateRemoteThread(_targetProcess.Handle, IntPtr.Zero, UIntPtr.Zero, (IntPtr)_getProcAddressShellPtr, (IntPtr)lpParameter, CREATE_THREAD_FLAGS.RUN_IMMEDIATELY, out uint threadId);
+            long lpParameter = (long)_circularBuffer.Add(ref getProcAddressParams);
+            IntPtr threadHandle = CreateRemoteThread(_targetProcess.Handle, IntPtr.Zero, UIntPtr.Zero, (IntPtr)_getProcAddressShellPtr, (IntPtr)lpParameter, CREATE_THREAD_FLAGS.RUN_IMMEDIATELY, out uint threadId);
 
             WaitForSingleObject(threadHandle, uint.MaxValue);
 
@@ -159,11 +163,11 @@ namespace Reloaded.Injector
             // GetProcAddress(long hModule, char* lpProcName)
             // lpParameter: Address of first struct member.
             // Using stdcall calling convention.
-            long getProcAddressAddress  = Kernel32Handle + _getProcAddressOffset;
-            GetProcAddressAddress       = getProcAddressAddress;
-            var getProcAddressPtr       = _privateBuffer.Add(ref getProcAddressAddress);
+            long getProcAddressAddress = Kernel32Handle + _getProcAddressOffset;
+            GetProcAddressAddress = getProcAddressAddress;
+            var getProcAddressPtr = _privateBuffer.Add(ref getProcAddressAddress);
 
-            long dummy                    = 0;
+            long dummy = 0;
             _getProcAddressReturnValuePtr = (long)_privateBuffer.Add(ref dummy);
 
             string[] getProcAddress =
@@ -178,6 +182,9 @@ namespace Reloaded.Injector
             };
 
 
+            if (_assembler == null)
+                throw new ShellCodeGeneratorException("Assembler is null.");
+
             byte[] bytes = _assembler.Assemble(getProcAddress);
             _getProcAddressShellPtr = (long)_privateBuffer.Add(bytes);
         }
@@ -187,9 +194,9 @@ namespace Reloaded.Injector
             // GetProcAddress(long hModule, char* lpProcName)
             // lpParameter: Address of first struct member.
             // Using Microsoft X64 calling convention.
-            long getProcAddressAddress  = Kernel32Handle + _getProcAddressOffset;
-            GetProcAddressAddress       = getProcAddressAddress;
-            var getProcAddressPtr       = _privateBuffer.Add(ref getProcAddressAddress);
+            long getProcAddressAddress = Kernel32Handle + _getProcAddressOffset;
+            GetProcAddressAddress = getProcAddressAddress;
+            var getProcAddressPtr = _privateBuffer.Add(ref getProcAddressAddress);
 
             long dummy = 0;
             _getProcAddressReturnValuePtr = (long)_privateBuffer.Add(ref dummy);
@@ -210,24 +217,27 @@ namespace Reloaded.Injector
                 "ret"                     // Restore stack ptr. (Callee cleanup)
             };
 
-			var bytes = GetASM("BuildGetProcAddress64", getProcAddress);
+            var bytes = GetASM("BuildGetProcAddress64", getProcAddress);
             _getProcAddressShellPtr = (long)_privateBuffer.Add(bytes);
         }
-		private byte[] GetASM(String for_what, params string[] lines) {
+        private byte[] GetASM(String for_what, params string[] lines)
+        {
+            if (_assembler == null)
+                throw new ShellCodeGeneratorException("Assembler is null.");
             byte[] bytes = _assembler.Assemble(lines);
-			return bytes;
-		}
+            return bytes;
+        }
         private void BuildLoadLibraryW86()
         {
             // Using stdcall calling convention.
             long loadLibraryAddress = Kernel32Handle + _loadLibraryWOffset;
-            LoadLibraryAddress      = loadLibraryAddress;
-            var loadLibraryPtr      = _privateBuffer.Add(ref loadLibraryAddress);
+            LoadLibraryAddress = loadLibraryAddress;
+            var loadLibraryPtr = _privateBuffer.Add(ref loadLibraryAddress);
 
             long dummy = 0;
             _loadLibraryWReturnValuePtr = (long)_privateBuffer.Add(ref dummy);
 
-            string[] loadLibraryW   =
+            string[] loadLibraryW =
             {
                $"use32",
                 "push dword [ESP + 4]",     // CreateRemoteThread lpParameter
@@ -236,8 +246,10 @@ namespace Reloaded.Injector
                 "ret 4"                     // Restore stack ptr. (Callee cleanup)
             };
 
-            
-            byte[] bytes        = _assembler.Assemble(loadLibraryW);
+            if (_assembler == null)
+                throw new ShellCodeGeneratorException("Assembler is null.");
+
+            byte[] bytes = _assembler.Assemble(loadLibraryW);
             _loadLibraryWShellPtr = (long)_privateBuffer.Add(bytes);
         }
 
@@ -245,10 +257,10 @@ namespace Reloaded.Injector
         private void BuildLoadLibraryW64()
         {
             // Using Microsoft X64 calling convention.
-            long loadLibraryAddress     = Kernel32Handle + _loadLibraryWOffset;
-            LoadLibraryAddress          = loadLibraryAddress;
-            var loadLibraryPtr          = _privateBuffer.Add(ref loadLibraryAddress);
-            
+            long loadLibraryAddress = Kernel32Handle + _loadLibraryWOffset;
+            LoadLibraryAddress = loadLibraryAddress;
+            var loadLibraryPtr = _privateBuffer.Add(ref loadLibraryAddress);
+
             long dummy = 0;
             _loadLibraryWReturnValuePtr = (long)_privateBuffer.Add(ref dummy);
 
@@ -263,7 +275,7 @@ namespace Reloaded.Injector
                 "add rsp, 40",                                // Re-align stack to 16 byte boundary + shadow space.
                 "ret"                                         // Restore stack ptr. (Callee cleanup)
             };
-			var bytes = GetASM("BuildLoadLibraryW64", loadLibraryW);
+            var bytes = GetASM("BuildLoadLibraryW64", loadLibraryW);
             _loadLibraryWShellPtr = (long)_privateBuffer.Add(bytes);
         }
 
@@ -287,8 +299,8 @@ namespace Reloaded.Injector
         private long WriteNullTerminatedUnicodeString(string libraryPath)
         {
             byte[] libraryNameBytes = Encoding.Unicode.GetBytes(libraryPath + '\0');
-            var adr =  _circularBuffer.Add(libraryNameBytes);
-			return (long)adr;
+            var adr = _circularBuffer.Add(libraryNameBytes);
+            return (long)adr;
         }
 
         /* One off construction functions. */
@@ -307,8 +319,8 @@ namespace Reloaded.Injector
         [StructLayout(LayoutKind.Sequential)]
         private struct GetProcAddressParams
         {
-            public long HModule     { get; set; }
-            public long LPProcName  { get; set; }
+            public long HModule { get; set; }
+            public long LPProcName { get; set; }
 
             public GetProcAddressParams(long hModule, long lPProcName) : this()
             {

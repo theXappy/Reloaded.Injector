@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -48,10 +49,10 @@ namespace Reloaded.Injector {
 				palloc = Buffers.AllocatePrivateMemory(new Reloaded.Memory.Buffers.Structs.Params.BufferAllocatorSettings { TargetProcess = proc, MinAddress = Shellcode.minimumAddress, MaxAddress = (nuint)UInt64.MaxValue, Size = (uint)size, RetryCount = Shellcode.retryCount });
 		}
         private bool IsPrivateAlloc;
-		public nuint BaseAddress => IsPrivateAlloc ? palloc.BaseAddress : alloc.Address;
-		public nuint AllocSize => IsPrivateAlloc ? palloc.Size : alloc.Length;
+		public nuint BaseAddress => IsPrivateAlloc ? palloc!.BaseAddress : alloc.Address;
+		public nuint AllocSize => IsPrivateAlloc ? palloc!.Size : alloc.Length;
 		private MemoryAllocation alloc;
-		private PrivateAllocation palloc;
+		private PrivateAllocation? palloc;
 		//private PrivateAllocation memory;
 		private ExternalMemory memory;
 		private bool disposedValue;
@@ -62,7 +63,7 @@ namespace Reloaded.Injector {
 				if (disposing) {
 
 				}
-				if (IsPrivateAlloc)
+				if (IsPrivateAlloc && palloc != null)
 					palloc.Dispose();
 				else
 					memory.Free(alloc);
@@ -109,7 +110,7 @@ namespace Reloaded.Injector {
 		}
 		private nuint AddMarshalled<TStructure>(TStructure bytesToWrite) {
 			var writePos = SecureWriteMemLoc(bytesToWrite, true);
-			memory.WriteWithMarshalling(writePos, bytesToWrite);
+			memory.WriteWithMarshalling(writePos, bytesToWrite!);
 			return writePos;
 		}
 		private nuint SecureWriteMemLoc<TStructure>(TStructure bytesToWrite, bool marshalElement) => SecureWriteMemLoc(GetSize<TStructure>(marshalElement));
