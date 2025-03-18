@@ -5,12 +5,12 @@
     <Authors>theXappy</Authors>
     <Company />
     <Product>ReReloaded</Product>
-    <Description>Advanced DLL Injector capable of injecting x86 DLLs to x86 process from x64 processes.</Description>
+    <Description>A fork of Reloaded.Injector (by Sewer56)</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseUrl></PackageLicenseUrl>
-    <PackageProjectUrl>https://github.com/Reloaded-Project/Reloaded.Injector</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/theXappy/Reloaded.Injector</PackageProjectUrl>
     <PackageIconUrl></PackageIconUrl>
-    <RepositoryUrl>https://github.com/Reloaded-Project/Reloaded.Injector</RepositoryUrl>
+    <RepositoryUrl>https://github.com/theXappy/Reloaded.Injector</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Version>5.5.1</Version>
