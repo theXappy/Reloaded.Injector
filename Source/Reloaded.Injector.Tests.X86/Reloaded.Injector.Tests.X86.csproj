@@ -2,9 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>NET472</TargetFramework>
-
+    <LangVersion>9.0</LangVersion>
     <IsPackable>false</IsPackable>
-
     <Platforms>AnyCPU;x86</Platforms>
   </PropertyGroup>
 
