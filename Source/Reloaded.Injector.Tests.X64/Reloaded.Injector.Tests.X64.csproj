@@ -21,7 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Reloaded.Injector.Tests.Dll32\Reloaded.Injector.Tests.Dll32.csproj" />
     <ProjectReference Include="..\Reloaded.Injector.Tests.Dll64\Reloaded.Injector.Tests.Dll64.csproj" />
-    <ProjectReference Include="..\Reloaded.Injector\Reloaded.Injector.csproj" />
+    <ProjectReference Include="..\Reloaded.Injector\ReReloaded.Injector.csproj" />
   </ItemGroup>
 
   <ItemGroup>
